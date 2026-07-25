@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -116,14 +117,16 @@ type parsedItem struct {
 }
 
 func main() {
-	depth := pflag.Int("depth", 0, "Maximum recursion depth (0 for unlimited)")
+	depth := pflag.Int("depth", 1, "Maximum recursion depth (0 for unlimited)")
 	delay := pflag.Int("delay", 100, "Delay between requests in milliseconds")
 	verbose := pflag.Bool("verbose", false, "Verbose output (show crawl details/progress)")
 	output := pflag.String("output", "", "Output file path (default is stdout)")
+	outputFormat := pflag.String("output-format", "tree", "Output format: tree or plain")
 	concurrency := pflag.Int("concurrency", 50, "Maximum number of concurrent HTTP requests")
 	retries := pflag.Int("retries", 3, "Number of retries for failed HTTP requests")
 	color := pflag.String("color", "auto", "Color output (always, never, auto)")
 	silent := pflag.Bool("silent", false, "Silent mode.")
+	insecure := pflag.Bool("insecure", false, "Skip TLS certificate verification")
 	version := pflag.Bool("version", false, "Print the version of the tool and exit.")
 	pflag.Parse()
 
@@ -162,8 +165,15 @@ func main() {
 		}
 	}
 
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: *insecure,
+		},
+	}
+
 	client := &http.Client{
-		Timeout: 15 * time.Second,
+		Timeout:   15 * time.Second,
+		Transport: transport,
 	}
 
 	sem := NewSem(*concurrency)
@@ -245,7 +255,12 @@ func main() {
 
 		// Print tree structure
 		if rootNode != nil {
-			PrintTree(out, rootNode, useColor)
+			switch *outputFormat {
+			case "plain":
+				PrintPlain(out, rootNode, cfg.StartURL, useColor)
+			default:
+				PrintTree(out, rootNode, useColor)
+			}
 		}
 
 		// Print crawling statistics (only if verbose)
@@ -558,16 +573,33 @@ func parseRow(tr *html.Node) (parsedItem, bool) {
 		}
 	}
 
-	// Index columns: 1st td is name/link, 2nd is last modified, 3rd is size
 	if len(tds) < 3 {
 		return parsedItem{}, false
 	}
 
-	aNode := findAnchorNode(tds[0])
-	if aNode == nil {
+	// Find the td that contains the anchor link (different Apache layouts
+	// may have an icon column before the link column, so the anchor isn't
+	// always in tds[0]).
+	var linkIdx int = -1
+	for i, td := range tds {
+		aNode := findAnchorNode(td)
+		if aNode != nil {
+			for _, attr := range aNode.Attr {
+				if attr.Key == "href" && attr.Val != "" {
+					linkIdx = i
+					break
+				}
+			}
+			if linkIdx >= 0 {
+				break
+			}
+		}
+	}
+	if linkIdx < 0 || linkIdx+2 >= len(tds) {
 		return parsedItem{}, false
 	}
 
+	aNode := findAnchorNode(tds[linkIdx])
 	var href string
 	for _, attr := range aNode.Attr {
 		if attr.Key == "href" {
@@ -580,17 +612,17 @@ func parseRow(tr *html.Node) (parsedItem, bool) {
 	}
 
 	// Skip parent directory
-	if strings.Contains(getTextContent(tds[0]), "Parent Directory") || href == "../" || href == "/" {
+	if strings.Contains(getTextContent(tds[linkIdx]), "Parent Directory") || href == "../" || href == "/" {
 		return parsedItem{}, false
 	}
 
-	lastModified := getTextContent(tds[1])
+	lastModified := getTextContent(tds[linkIdx+1])
 	lastModified = strings.TrimSpace(lastModified)
 	if strings.Contains(lastModified, "\u00a0") || lastModified == "" {
 		lastModified = ""
 	}
 
-	size := getTextContent(tds[2])
+	size := getTextContent(tds[linkIdx+2])
 	size = strings.TrimSpace(size)
 	if size == "-" || size == "" {
 		size = ""
@@ -659,6 +691,66 @@ func PrintTree(out io.Writer, root *Node, useColor bool) {
 	// Print children recursively
 	for i, child := range root.Children {
 		printNode(out, child, "", i == len(root.Children)-1, useColor)
+	}
+}
+
+// PrintPlain prints the directory listing as a flat list of full URLs
+func PrintPlain(out io.Writer, root *Node, baseURL string, useColor bool) {
+	if root == nil {
+		return
+	}
+	baseURL = strings.TrimSuffix(baseURL, "/")
+	for _, child := range root.Children {
+		if child == nil {
+			continue
+		}
+		printPlainNode(out, child, baseURL, useColor)
+	}
+}
+
+func printPlainNode(out io.Writer, node *Node, parentURL string, useColor bool) {
+	if node == nil {
+		return
+	}
+	fullURL := strings.TrimSuffix(parentURL, "/") + "/" + node.Name
+	if node.IsDir {
+		fullURL += "/"
+	}
+
+	displayURL := fullURL
+	if useColor {
+		if node.IsDir {
+			displayURL = ansiBlue + displayURL + ansiReset
+		} else {
+			displayURL = ansiGreen + displayURL + ansiReset
+		}
+	}
+
+	var meta []string
+	if node.Size != "" {
+		meta = append(meta, node.Size)
+	}
+	if node.LastModified != "" {
+		meta = append(meta, node.LastModified)
+	}
+
+	if len(meta) > 0 {
+		metaStr := strings.Join(meta, ", ")
+		if useColor {
+			metaStr = ansiYellow + metaStr + ansiReset
+		}
+		fmt.Fprintf(out, "%s (%s)\n", displayURL, metaStr)
+	} else {
+		fmt.Fprintf(out, "%s\n", displayURL)
+	}
+
+	// Recurse into subdirectories
+	if node.IsDir {
+		for _, child := range node.Children {
+			if child != nil {
+				printPlainNode(out, child, fullURL, useColor)
+			}
+		}
 	}
 }
 

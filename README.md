@@ -16,9 +16,9 @@ go install github.com/rix4uni/indextree@latest
 
 ## Download prebuilt binaries
 ```
-wget https://github.com/rix4uni/indextree/releases/download/v0.0.1/indextree-linux-amd64-0.0.1.tgz
-tar -xvzf indextree-linux-amd64-0.0.1.tgz
-rm -rf indextree-linux-amd64-0.0.1.tgz
+wget https://github.com/rix4uni/indextree/releases/download/v0.0.2/indextree-linux-amd64-0.0.2.tgz
+tar -xvzf indextree-linux-amd64-0.0.2.tgz
+rm -rf indextree-linux-amd64-0.0.2.tgz
 mv indextree ~/go/bin/indextree
 ```
 Or download [binary release](https://github.com/rix4uni/indextree/releases) for your platform.
@@ -32,26 +32,25 @@ cd indextree; go install
 ## Usage
 ```console
 Usage of indextree:
-      --color string      Color output (always, never, auto) (default "auto")
-      --concurrency int   Maximum number of concurrent HTTP requests (default 50)
-      --delay int         Delay between requests in milliseconds (default 100)
-      --depth int         Maximum recursion depth (0 for unlimited)
-      --output string     Output file path (default is stdout)
-      --retries int       Number of retries for failed HTTP requests (default 3)
-      --silent            Silent mode.
-      --verbose           Verbose output (show crawl details/progress)
-      --version           Print the version of the tool and exit.
+      --color string           Color output (always, never, auto) (default "auto")
+      --concurrency int        Maximum number of concurrent HTTP requests (default 50)
+      --delay int              Delay between requests in milliseconds (default 100)
+      --depth int              Maximum recursion depth (0 for unlimited) (default 1)
+      --insecure               Skip TLS certificate verification
+      --output string          Output file path (default is stdout)
+      --output-format string   Output format: tree or plain (default "tree")
+      --retries int            Number of retries for failed HTTP requests (default 3)
+      --silent                 Silent mode.
+      --verbose                Verbose output (show crawl details/progress)
+      --version                Print the version of the tool and exit.
 ```
 
 ## Examples
 
-### 1. Simple Directory Listing (Depth 1)
+### 1. Simple Directory Listing
 ```console
 echo "https://spdf.gsfc.example.com/pub/" | indextree --depth 2
-```
 
-**Output**:
-```console
 pub/
 ├── catalogs/
 │   ├── plot_walk/ (2025-09-19 14:49)
@@ -280,12 +279,67 @@ pub/
 └── datasets.html (3.6K, 2022-09-07 16:22)
 ```
 
-### 2. Crawl Subdirectories (Depth 2) with Concurrency and Log Verbosity
+```console
+echo "https://idrpoker.example.com/" | indextree --silent --insecure
+
+idrpoker.example.com/
+├── cgi-bin/ (2025-11-30 08:14)
+├── custom/ (2025-11-30 08:14)
+├── db/ (2025-11-30 08:14)
+├── docs/ (2025-11-30 08:14)
+├── kutt-3.2.3/ (2025-11-30 08:14)
+├── node_modules/ (2025-11-30 08:17)
+├── public/ (2025-11-30 08:13)
+├── server/ (2025-11-30 08:14)
+├── static/ (2025-11-30 08:14)
+├── tmp/ (2025-11-30 08:12)
+├── docker-compose.mariadb.yml (1.0K, 2025-11-30 08:14)
+├── docker-compose.postgres.yml (860, 2025-11-30 08:14)
+├── docker-compose.sqlite-redis.yml (470, 2025-11-30 08:14)
+├── docker-compose.yml (257, 2025-11-30 08:14)
+├── Dockerfile (621, 2025-11-30 08:14)
+├── jsconfig.json (160, 2025-11-30 08:14)
+├── knexfile.js (768, 2025-11-30 08:14)
+├── kutt-3.2.3.zip (412K, 2025-11-30 08:14)
+├── LICENSE (1.0K, 2025-11-30 08:14)
+├── package-lock.json (244K, 2025-11-30 08:14)
+├── package.json (1.9K, 2025-11-30 08:14)
+└── stderr.log (125K, 2026-01-24 23:17)
+```
+
+```console
+echo "https://idrpoker.example.com/" | indextree --silent --insecure --output-format plain
+
+https://idrpoker.example.com/cgi-bin/ (2025-11-30 08:14)
+https://idrpoker.example.com/custom/ (2025-11-30 08:14)
+https://idrpoker.example.com/db/ (2025-11-30 08:14)
+https://idrpoker.example.com/docs/ (2025-11-30 08:14)
+https://idrpoker.example.com/kutt-3.2.3/ (2025-11-30 08:14)
+https://idrpoker.example.com/node_modules/ (2025-11-30 08:17)
+https://idrpoker.example.com/public/ (2025-11-30 08:13)
+https://idrpoker.example.com/server/ (2025-11-30 08:14)
+https://idrpoker.example.com/static/ (2025-11-30 08:14)
+https://idrpoker.example.com/tmp/ (2025-11-30 08:12)
+https://idrpoker.example.com/docker-compose.mariadb.yml (1.0K, 2025-11-30 08:14)
+https://idrpoker.example.com/docker-compose.postgres.yml (860, 2025-11-30 08:14)
+https://idrpoker.example.com/docker-compose.sqlite-redis.yml (470, 2025-11-30 08:14)
+https://idrpoker.example.com/docker-compose.yml (257, 2025-11-30 08:14)
+https://idrpoker.example.com/Dockerfile (621, 2025-11-30 08:14)
+https://idrpoker.example.com/jsconfig.json (160, 2025-11-30 08:14)
+https://idrpoker.example.com/knexfile.js (768, 2025-11-30 08:14)
+https://idrpoker.example.com/kutt-3.2.3.zip (412K, 2025-11-30 08:14)
+https://idrpoker.example.com/LICENSE (1.0K, 2025-11-30 08:14)
+https://idrpoker.example.com/package-lock.json (244K, 2025-11-30 08:14)
+https://idrpoker.example.com/package.json (1.9K, 2025-11-30 08:14)
+https://idrpoker.example.com/stderr.log (125K, 2026-01-24 23:17)
+```
+
+### 2. Crawl Subdirectories
 ```console
 echo "https://spdf.gsfc.example.com/pub/software" | indextree --depth 2 --verbose
 ```
 
-### 3. Save Tree to a Text File (Colors Automatically Disabled)
+### 3. Save Tree to a Text File
 ```console
 echo "https://spdf.gsfc.example.com/pub/software/" | indextree --depth 2 --output tree.txt
 ```
